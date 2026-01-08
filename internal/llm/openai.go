@@ -16,9 +16,10 @@ const (
 
 // OpenAIClient implements the Client interface for OpenAI
 type OpenAIClient struct {
-	apiKey string
-	model  string
-	client *http.Client
+	apiKey  string
+	model   string
+	baseURL string
+	client  *http.Client
 }
 
 // NewOpenAIClient creates a new OpenAI client
@@ -33,10 +34,16 @@ func NewOpenAIClient() (*OpenAIClient, error) {
 		model = defaultOpenAIModel
 	}
 
+	baseURL := os.Getenv("OPENAI_API_BASE")
+	if baseURL == "" {
+		baseURL = openAIAPIURL
+	}
+
 	return &OpenAIClient{
-		apiKey: apiKey,
-		model:  model,
-		client: &http.Client{},
+		apiKey:  apiKey,
+		model:   model,
+		baseURL: baseURL,
+		client:  &http.Client{},
 	}, nil
 }
 
@@ -133,7 +140,7 @@ func (c *OpenAIClient) Chat(messages []Message, tools []ToolDefinition) (*Respon
 	}
 
 	// Create HTTP request
-	req, err := http.NewRequest("POST", openAIAPIURL, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("POST", c.baseURL, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
