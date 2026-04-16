@@ -1,361 +1,304 @@
 # Web Browse Agent
 
-An AI-powered agent for web browsing and UI testing, written in Go. This agent uses an agentic loop pattern to accomplish complex tasks through recursive tool calls, combining browser automation with LLM reasoning.
+Version: `1.4.0`
+
+A sessionful browser automation CLI for persistent web browsing sessions. This tool provides a REPL-style interface where you start a browser session and send commands one at a time while maintaining session state.
 
 Built by the team at **[FileSurf](https://filesurf.io)** — the AI-native workspace for files, chat, and automation.
 
+## Quick Reference
+
+**Comprehensive help is built-in:**
+```bash
+web_browse_agent --help              # Full documentation with examples
+web_browse_agent commands            # Quick command reference
+web_browse_agent describe-commands   # Detailed command descriptions with notes
+```
+
 ## Features
 
-- **Agentic Loop Pattern** - Recursive tool execution with automatic retry and error handling (up to 50 iterations)
-- **Browser Automation** - Full Playwright integration for web interaction
-- **Multi-LLM Support** - Works with OpenAI GPT-4 and Anthropic Claude models
-- **Core Tools** - File read/write operations and bash command execution
-- **18 Browser Tools** - Comprehensive web automation capabilities
-- **Flexible Selectors** - Multiple selector strategies for element targeting
-- **Tab Management** - Full multi-tab browser session support
-- **Screenshot Capture** - Visual documentation of browser state
+- **Persistent Sessions** - Browser sessions maintain state (tabs, cookies, navigation history) across commands
+- **Persistent Storage** - Optional persistent browser data (cookies, localStorage, sessionStorage) via `WEB_AGENT_PERSISTENT_STORAGE` env var
+- **One Command at a Time** - Stateless CLI that connects to session state
+- **Auto-Cleanup** - Driver process monitors parent PID and auto-terminates when the parent process exits
+- **Full Browser Automation** - Powered by Playwright with support for all major browsers
+- **JSON Output** - Machine-readable output with `--json` flag
+- **Command Discovery** - Use `commands` subcommand or `--help` for comprehensive documentation
+- **Stealth Mode** - Built-in Cloudflare/bot-detection bypass for datacenter environments (on by default)
 
 ## Requirements
 
 - **Go 1.22+**
-- **Playwright** - Installed automatically on first run
-- **API Key** - One of the following:
-  - OpenAI API key, or
-  - Anthropic API key
+- **Playwright** - Installed via `make install-deps`
 
 ## Installation
 
+### Local/Desktop Environment
+
 ```bash
-# Clone the repository
+# Build the agent
+git clone https://github.com/filesurf-io/web-browse-agent.git
+cd web-browse-agent
+make build
+
+# Install Playwright browsers (first time only)
+make install-deps
+```
+
+### Datacenter / Container Environment
+
+In datacenter environments (Docker, Kubernetes, CI/CD), system libraries required by
+Chromium are often missing. Use the datacenter install target:
+
+```bash
 git clone https://github.com/filesurf-io/web-browse-agent.git
 cd web-browse-agent
 
-# Build the agent
-go build -o web-browse-agent ./cmd/agent
-
-# Install Playwright browsers (first time only)
-go run github.com/playwright-community/playwright-go/cmd/playwright@latest install
+# Full setup: build + Playwright browsers + system libs + wrapper script
+make install-datacenter
 ```
+
+This will:
+1. Build the binary
+2. Download and install Playwright's Chromium browser
+3. Download Debian system libraries (libglib2, libnss3, libx11, etc.) to `bin/chromium_libs/`
+4. Create a wrapper script `bin/web_browse_agent` that sets `LD_LIBRARY_PATH` automatically
+
+The wrapper replaces the binary in-place, so you can use `bin/web_browse_agent` directly.
+
+#### Manual library installation
+
+If you only need the system libraries (e.g. you already have Go and Playwright installed):
+
+```bash
+./install-system-libs.sh /path/to/libs
+export LD_LIBRARY_PATH="/path/to/libs/usr/lib/x86_64-linux-gnu:..."
+```
+
+## Stealth Mode (Cloudflare Bypass)
+
+Stealth mode is **enabled by default** and patches several browser fingerprinting vectors
+that bot detection systems (Cloudflare, DataDome, etc.) use to identify headless browsers:
+
+| Detection Vector | Fix Applied |
+|---|---|
+| `navigator.webdriver` present | Deleted from Navigator prototype |
+| `HeadlessChrome` in User-Agent | Replaced with regular `Chrome` UA string |
+| `HeadlessChrome` in `sec-ch-ua` header | Overridden with `"Google Chrome"` brand list |
+| `window.chrome` missing | Restored with full chrome runtime object |
+| Plugins array empty | Spoofed with 3 standard Chrome plugins |
+| `navigator.languages` shows `en-US@posix` | Fixed to `['en-US', 'en']` |
+| Permissions return `denied` | Fixed for notifications |
+| Small viewport | Set to 1920x1080 |
+| Timezone missing | Set to `America/New_York` |
+
+To disable stealth mode (e.g. for debugging):
+```bash
+WEB_AGENT_STEALTH=0 web_browse_agent --session test open https://example.com
+```
+
 
 ## Usage
 
-### Command Line Mode
-
-Execute a single task:
+### Basic Usage
 
 ```bash
-# Using default provider (OpenAI)
-./web-browse-agent "go to google.com and search for playwright"
+# Open a URL in a session
+web_browse_agent --session my-session open https://example.com
 
-# With verbose output
-./web-browse-agent -v "navigate to github.com and find the trending repositories"
+# List tabs in the session
+web_browse_agent --session my-session list-tabs
+
+# Evaluate JavaScript on the page
+web_browse_agent --session my-session eval "document.title"
+
+# Take a screenshot
+web_browse_agent --session my-session screenshot
+
+# Upload a file to a file input
+web_browse_agent --session my-session upload-file "input[type=file]" /path/to/file.pdf
+
+# Upload multiple files
+web_browse_agent --session my-session upload-file "#file-input" /path/to/file1.pdf /path/to/file2.jpg
+
+# Get available commands
+web_browse_agent commands
+
+# End a session
+web_browse_agent --session my-session end-session
 ```
 
-### Interactive Mode
+### Async Navigation
 
-Start an interactive session for multiple tasks:
+The `open` command is async by design - it returns immediately after the browser commits the navigation (receives HTTP response headers) but doesn't wait for all resources to load. This enables REPL-style usage without blocking.
 
+To wait for the page to fully load after opening:
 ```bash
-./web-browse-agent --interactive
-
-# Or with shorthand
-./web-browse-agent -i
+web_browse_agent --session my-session open https://example.com
+web_browse_agent --session my-session wait-for --wait-type navigation
 ```
 
-In interactive mode:
-- Type your commands at the `>` prompt
-- Use `reset` to clear conversation history
-- Use `exit` or `quit` to exit
+### Global Flags
 
-### With Different LLM Providers
+- `--session <id>` or `-s <id>`: Session ID (required for most commands)
+- `--json`: Machine-readable JSON output
+- `--timeout <sec>`: Per-command timeout in seconds (default: 30)
+- `--headless/--no-headless`: Run browser in headless mode (default: headless)
+- `--verbose` or `-v`: Enable verbose output
+- `--proxy <url>`: HTTP/SOCKS proxy URL, e.g. `http://host:8080` or `socks5://host:1080` (overrides `WEB_AGENT_PROXY`)
 
-```bash
-# Using OpenAI (default)
-export OPENAI_API_KEY="your-api-key"
-./web-browse-agent "test the login form"
+## Available Commands
 
-# Using Anthropic Claude
-export ANTHROPIC_API_KEY="your-api-key"
-./web-browse-agent --provider anthropic "test the login form"
+### Browser Control
+- `open <url>` - Navigate to URL (async - returns immediately after navigation starts)
+- `list-tabs` - List all tabs
+- `switch-tab <id>` - Switch to tab by ID
+- `close-tab <id>` - Close tab by ID
 
-# Or set provider via environment variable
-export LLM_PROVIDER=anthropic
-./web-browse-agent "test the login form"
+### Page Interaction
+- `eval <js>` - Evaluate JavaScript
+- `click <selector>` - Click element (CSS/Playwright selectors)
+- `type <selector> <text>` - Type text into element
+- `upload-file <selector> <file_path...>` - Upload file(s) to a file input element
+- `wait-for <selector>` - Wait for element to appear (also supports `wait_type=navigation` to wait for page load after `open`)
+
+### Page Inspection
+- `screenshot` - Take screenshot (returns base64)
+- `html` - Get page HTML
+
+### Browser Configuration
+- `set-viewport <width> <height>` - Set viewport size
+- `cookies` - Get/set cookies
+
+### Session Management
+- `session-info` - Get session information
+- `describe-commands` - List available commands with details
+- `end-session` - End the session
+- `ping` - Check if session is alive
+- `commands` - Show available commands (no session required)
+
+## Klawed Integration
+
+This tool can be used standalone or integrated into agent frameworks:
+
+```json
+{
+  "command": "open",
+  "args": ["https://example.com"],
+  "session": "my-agent"
+}
 ```
 
-### With Headless Browser
-
-```bash
-# Run without visible browser window
-./web-browse-agent --headless "take a screenshot of example.com"
-
-# Or via environment variable
-export BROWSER_HEADLESS=true
-./web-browse-agent "take a screenshot of example.com"
-```
-
-### Without Browser Tools
-
-```bash
-# Run with only file and bash tools (no browser)
-./web-browse-agent --no-browser "list files in the current directory"
-```
+The tool will:
+1. Start a browser driver process if not already running
+2. Send the command to the session
+3. Return JSON results
+4. Auto-cleanup when idle or when the parent process exits
 
 ## Environment Variables
 
-### LLM Configuration
-
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `LLM_PROVIDER` | LLM provider to use (`openai` or `anthropic`) | `openai` |
-| `OPENAI_API_KEY` | OpenAI API key (required for OpenAI) | - |
-| `OPENAI_MODEL` | OpenAI model to use | `gpt-4o` |
-| `ANTHROPIC_API_KEY` | Anthropic API key (required for Anthropic) | - |
-| `ANTHROPIC_MODEL` | Anthropic model to use | `claude-sonnet-4-20250514` |
+| `WEB_AGENT_PERSISTENT_STORAGE` | Enable persistent browser storage (cookies, localStorage, etc.) | `false` |
+| `WEB_AGENT_IDLE_TIMEOUT` | Idle timeout in seconds (0 to disable) | `300` (5 min) |
+| `WEB_AGENT_PROXY` | HTTP/SOCKS proxy URL for all browser traffic, e.g. `http://host:8080` or `socks5://host:1080` | (none) |
+| `BROWSER_HEADLESS` | Run browser without UI | `true` |
+| `BROWSER_VIEWPORT_WIDTH` | Browser viewport width | `1280` |
+| `BROWSER_VIEWPORT_HEIGHT` | Browser viewport height | `720` |
+| `BROWSER_ACTION_TIMEOUT` | Timeout for actions (ms) | `5000` |
+| `BROWSER_NAVIGATION_TIMEOUT` | Timeout for navigation (ms) | `30000` |
 
-### Browser Configuration
+## Persistent Browser Storage
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `BROWSER_TYPE` | Browser engine (`CHROMIUM`, `FIREFOX`, `WEBKIT`) | `CHROMIUM` |
-| `BROWSER_HEADLESS` | Run browser without UI (`true`/`false`) | `false` |
-| `BROWSER_VIEWPORT_WIDTH` | Browser viewport width in pixels | `1280` |
-| `BROWSER_VIEWPORT_HEIGHT` | Browser viewport height in pixels | `720` |
-| `BROWSER_ACTION_TIMEOUT` | Timeout for actions in milliseconds | `5000` |
-| `BROWSER_NAVIGATION_TIMEOUT` | Timeout for page navigation in milliseconds | `30000` |
-| `BROWSER_OUTPUT_DIR` | Directory for screenshots and outputs | `.` (current) |
-| `BROWSER_USER_DATA_DIR` | Path to user data directory for persistent sessions | - |
-
-## Available Tools
-
-### Core Tools
-
-| Tool | Description |
-|------|-------------|
-| `read_file` | Read contents of a file from the filesystem |
-| `write_file` | Write content to a file on the filesystem |
-| `bash` | Execute shell commands and return output |
-
-### Browser Navigation
-
-| Tool | Description |
-|------|-------------|
-| `browser_navigate` | Navigate to a URL in the browser |
-| `browser_navigate_back` | Go back to the previous page in browser history |
-
-### Browser Interaction
-
-| Tool | Description |
-|------|-------------|
-| `browser_click` | Click on an element in the page |
-| `browser_fill` | Fill an input field with text (clears first) |
-| `browser_type` | Type text character by character (simulates keystrokes) |
-| `browser_press_key` | Press a key or key combination (e.g., Enter, Tab, Ctrl+c) |
-| `browser_hover` | Hover over an element to trigger hover states |
-| `browser_select_option` | Select an option from a dropdown by value, label, or index |
-
-### Page Inspection
-
-| Tool | Description |
-|------|-------------|
-| `browser_snapshot` | Get accessibility tree snapshot of the current page |
-| `browser_screenshot` | Take a screenshot (full page, viewport, or element) |
-| `browser_evaluate` | Execute JavaScript code in the browser context |
-
-### Tab Management
-
-| Tool | Description |
-|------|-------------|
-| `browser_tabs_list` | List all open browser tabs with IDs, URLs, and titles |
-| `browser_tab_new` | Open a new browser tab, optionally navigating to a URL |
-| `browser_tab_select` | Switch to a specific browser tab by ID |
-| `browser_tab_close` | Close a browser tab by ID |
-
-### Wait Operations
-
-| Tool | Description |
-|------|-------------|
-| `browser_wait` | Wait for element state (visible, hidden, attached, detached) or time |
-
-## Element Selector Formats
-
-The browser tools support multiple selector strategies for targeting elements:
-
-| Format | Example | Description |
-|--------|---------|-------------|
-| CSS Selector | `div.class`, `#id`, `button[type="submit"]` | Standard CSS selectors (default) |
-| `testid:xxx` | `testid:login-button` | Select by `data-testid` attribute |
-| `role:xxx` | `role:button` | Select by ARIA role |
-| `role:xxx:text` | `role:button:Submit` | Select by ARIA role with accessible name |
-| `text:xxx` | `text:Click me` | Select by text content |
-| `label:xxx` | `label:Email` | Select by associated form label |
-| `placeholder:xxx` | `placeholder:Enter email` | Select by input placeholder text |
-
-### Selector Examples
+By default, browser sessions use ephemeral storage - cookies, localStorage, sessionStorage, and other browser data are lost when the driver shuts down. To enable persistent storage across sessions:
 
 ```bash
-# CSS selectors
-./web-browse-agent "click on the element with selector '#submit-btn'"
-./web-browse-agent "fill the input '.email-field' with 'test@example.com'"
+# Enable persistent storage for a session
+WEB_AGENT_PERSISTENT_STORAGE=true web_browse_agent --session my-session open https://example.com
 
-# Using data-testid
-./web-browse-agent "click on 'testid:login-button'"
+# Browser data (cookies, localStorage, etc.) is stored in ~/.web-agent/sessions/<session-id>/user-data/
+# Data persists even after the driver shuts down due to idle timeout
 
-# Using ARIA roles
-./web-browse-agent "click on 'role:button:Sign In'"
-
-# Using text content
-./web-browse-agent "click on 'text:Learn More'"
-
-# Using form labels
-./web-browse-agent "fill 'label:Password' with 'secret123'"
+# When you restart the session, all stored data is restored
+WEB_AGENT_PERSISTENT_STORAGE=true web_browse_agent --session my-session open https://example.com
 ```
 
-## Project Structure
+**Note**: When persistent storage is enabled:
+- Browser data is stored in `~/.web-agent/sessions/<session-id>/user-data/`
+- Cookies, localStorage, sessionStorage, IndexedDB, and other browser data persist across driver restarts
+- Each session has its own isolated user data directory
+- To clear persistent data, delete the session directory or use a new session ID
 
-```
-web-browse-agent/
-├── cmd/
-│   └── agent/
-│       └── main.go           # CLI entry point with cobra commands
-├── internal/
-│   ├── agent/
-│   │   └── agent.go          # Agentic loop implementation
-│   ├── browser/
-│   │   ├── config.go         # Browser configuration from environment
-│   │   ├── context.go        # Browser context and tab management
-│   │   ├── registry.go       # Browser tool registration
-│   │   └── tools.go          # 16 browser tool implementations
-│   ├── llm/
-│   │   ├── client.go         # LLM client interface
-│   │   ├── factory.go        # Client factory for provider selection
-│   │   ├── openai.go         # OpenAI API implementation
-│   │   └── anthropic.go      # Anthropic Claude API implementation
-│   └── tool/
-│       ├── tool.go           # Tool interface definition
-│       ├── registry.go       # Tool registry for management
-│       ├── read_file.go      # File read tool
-│       ├── write_file.go     # File write tool
-│       └── bash.go           # Bash execution tool
-├── pkg/                      # Public packages (if any)
-├── go.mod                    # Go module definition
-├── go.sum                    # Dependency checksums
-└── README.md                 # This file
+## Idle Timeout
+
+Browser sessions automatically shut down after a period of inactivity to clean up resources. The default idle timeout is 5 minutes.
+
+- Sessions are kept alive by any command (open, eval, click, ping, etc.)
+- After the idle timeout expires with no commands, the driver process exits
+- The next command will automatically start a new driver
+
+To configure:
+```bash
+# Set idle timeout to 10 minutes
+WEB_AGENT_IDLE_TIMEOUT=600 web_browse_agent --session my-session open https://example.com
+
+# Disable idle timeout (session runs until end-session or process killed)
+WEB_AGENT_IDLE_TIMEOUT=0 web_browse_agent --session my-session open https://example.com
 ```
 
 ## Architecture
 
-### Agentic Loop
+Web Agent uses a client-driver architecture:
 
-The agent follows a recursive loop pattern:
+1. **CLI Client** - Thin wrapper that parses commands and communicates with driver
+2. **Driver Process** - Manages Playwright browser instance and executes commands
+3. **IPC Communication** - Unix domain sockets for client-driver communication
+4. **Session Registry** - JSON-based persistence in `~/.web-agent/sessions/`
+5. **Parent PID Monitoring** - Driver auto-terminates when parent process dies
 
-1. **User Input** → System receives task description
-2. **LLM Call** → Send conversation history and available tools to LLM
-3. **Response Processing** → Check for tool calls or completion
-4. **Tool Execution** → Execute requested tools and capture results
-5. **Result Integration** → Add tool results to conversation
-6. **Iterate** → Return to step 2 until task complete or max iterations
+## Development
 
-### Tool Interface
+### Project Structure
 
-All tools implement the `Tool` interface:
-
-```go
-type Tool interface {
-    Name() string
-    Description() string
-    ParametersSchema() map[string]interface{}
-    Execute(params map[string]interface{}) (string, error)
-}
+```
+web-browse-agent/
+├── cmd/web_browse_agent/main.go   # CLI entry point
+├── internal/
+│   ├── commands/                  # Command execution layer
+│   └── session/                   # Session management
+├── pkg/
+│   ├── browser/                   # Browser driver and handlers
+│   ├── ipc/                       # IPC communication
+│   └── version/                   # Version info
+├── go.mod
+└── Makefile
 ```
 
-### LLM Client Interface
-
-LLM providers implement the `Client` interface:
-
-```go
-type Client interface {
-    Chat(messages []Message, tools []ToolDefinition) (*Response, error)
-    GetModel() string
-}
-```
-
-## Examples
-
-### Web Scraping
+### Building and Testing
 
 ```bash
-./web-browse-agent "go to news.ycombinator.com and get the titles of the top 5 stories"
+make build       # Build the binary
+make test        # Run tests
+make fmt         # Format code
+make vet         # Run go vet
+make dev         # Full dev workflow
 ```
 
-### Form Testing
+## Breaking Changes from v0.x
 
-```bash
-./web-browse-agent "navigate to the login page, fill in test credentials, and verify the error message"
-```
+This is a complete rewrite from the agentic "fire and forget" style to REPL-style:
 
-### Screenshot Documentation
+- **v0.x**: Ran an agentic loop with LLM to accomplish tasks
+- **v1.x**: Sends individual commands to a persistent browser session
 
-```bash
-./web-browse-agent --headless "take full page screenshots of example.com and save them"
-```
-
-### Multi-Tab Operations
-
-```bash
-./web-browse-agent -i
-> open google.com in a new tab
-> open github.com in another tab
-> list all open tabs
-> switch to the first tab
-```
-
-## Troubleshooting
-
-### Playwright Not Found
-
-```bash
-# Install Playwright browsers
-go run github.com/playwright-community/playwright-go/cmd/playwright@latest install
-```
-
-### API Key Errors
-
-Ensure your API key is properly exported:
-
-```bash
-export OPENAI_API_KEY="sk-..."
-# or
-export ANTHROPIC_API_KEY="sk-ant-..."
-```
-
-### Browser Timeout Issues
-
-Increase timeout values:
-
-```bash
-export BROWSER_ACTION_TIMEOUT=10000
-export BROWSER_NAVIGATION_TIMEOUT=60000
-```
-
-### Headless Mode Issues
-
-Some sites may behave differently in headless mode. Try with visible browser:
-
-```bash
-export BROWSER_HEADLESS=false
-```
+The new architecture:
+- Uses less context (no 18+ tool definitions flooded to LLM)
+- Provides better control over browser state
+- Auto-cleans up when the parent process exits
+- Uses `help` command for discovering available operations
 
 ## License
 
 MIT License
-
-## Credits
-
-This project is a Go port inspired by Java-based AI agents for UI testing. It leverages:
-
-- [Playwright for Go](https://github.com/playwright-community/playwright-go) - Browser automation
-- [Cobra](https://github.com/spf13/cobra) - CLI framework
-- OpenAI and Anthropic APIs for LLM capabilities
 
 Proudly maintained by [FileSurf](https://filesurf.io) — bring your files and AI together.

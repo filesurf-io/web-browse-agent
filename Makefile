@@ -1,72 +1,128 @@
+# Makefile for web_browse_agent
+
+.PHONY: all build clean test fmt vet lint install install-deps help
+
 # Go parameters
 GOCMD=go
 GOBUILD=$(GOCMD) build
-GORUN=$(GOCMD) run
+GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
-GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
-GOINSTALL=$(GOCMD) install
+GOFMT=$(GOCMD) fmt
+GOVET=$(GOCMD) vet
+BINARY_NAME=web_browse_agent
+BINARY_DIR=bin
+BINARY_PATH=$(BINARY_DIR)/$(BINARY_NAME)
 
-# Binary name
-BINARY_NAME=web-browse-agent
-
-# Main package path
-MAIN_PKG=./cmd/agent
-
-# Build flags
-LDFLAGS=-ldflags "-s -w"
-
-.PHONY: all build run test clean install lint deps playwright-install help
-
+# Default target
 all: build
 
-## build: Compile the binary
+# Build the project
 build:
-	$(GOBUILD) $(LDFLAGS) -o $(BINARY_NAME) $(MAIN_PKG)
+	@echo "Building $(BINARY_NAME)..."
+	@mkdir -p $(BINARY_DIR)
+	$(GOBUILD) -o $(BINARY_PATH) ./cmd/web_browse_agent
+	@echo "Build complete: $(BINARY_PATH)"
 
-## run: Build and run the application
-run: build
-	./$(BINARY_NAME)
-
-## test: Run all tests
-test:
-	$(GOTEST) -v ./...
-
-## test-coverage: Run tests with coverage
-test-coverage:
-	$(GOTEST) -v -coverprofile=coverage.out ./...
-	$(GOCMD) tool cover -html=coverage.out -o coverage.html
-
-## clean: Remove build artifacts
+# Clean build files
 clean:
-	$(GOCMD) clean
-	rm -f $(BINARY_NAME)
-	rm -f $(BINARY_NAME).exe
-	rm -f coverage.out
-	rm -f coverage.html
+	@echo "Cleaning..."
+	$(GOCLEAN)
+	rm -rf $(BINARY_DIR)
+	@echo "Clean complete"
 
-## install: Install binary to GOPATH/bin
-install:
-	$(GOINSTALL) $(MAIN_PKG)
+# Run tests
+test:
+	@echo "Running tests..."
+	$(GOTEST) ./...
 
-## lint: Run golangci-lint
+# Format code
+fmt:
+	@echo "Formatting code..."
+	$(GOFMT) ./...
+
+# Vet code
+vet:
+	@echo "Vetting code..."
+	$(GOVET) ./...
+
+# Lint (requires golangci-lint)
 lint:
-	@which golangci-lint > /dev/null || (echo "golangci-lint not found, install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest" && exit 1)
+	@echo "Linting..."
 	golangci-lint run ./...
 
-## deps: Download and tidy dependencies
-deps:
+# Install dependencies
+install-deps:
+	@echo "Installing dependencies..."
 	$(GOMOD) download
-	$(GOMOD) tidy
-
-## playwright-install: Install Playwright browsers
-playwright-install:
 	@echo "Installing Playwright browsers..."
-	@which playwright > /dev/null && playwright install || npx playwright install
+	$(GOCMD) run github.com/playwright-community/playwright-go/cmd/playwright@v0.5200.1 install chromium
 
-## help: Display this help
-help:
-	@echo "Usage: make [target]"
+# Install system libraries for Chromium in datacenter/stripped container environments
+# Downloads Debian bookworm packages and extracts to ./chromium_libs/
+install-system-libs:
+	@echo "Installing Chromium system libraries for datacenter environments..."
+	@chmod +x ./install-system-libs.sh
+	./install-system-libs.sh ./chromium_libs
 	@echo ""
-	@echo "Targets:"
-	@sed -n 's/^##//p' $(MAKEFILE_LIST) | column -t -s ':' | sed 's/^/ /'
+	@echo "Libraries installed. Use 'make install-datacenter' for a full setup."
+
+# Full datacenter install: build + playwright deps + system libs + wrapper script
+install-datacenter: build install-deps install-system-libs
+	@echo "Creating wrapper script that sets LD_LIBRARY_PATH automatically..."
+	@cp $(BINARY_PATH) $(BINARY_DIR)/web_browse_agent.bin
+	@cp web_browse_agent.sh $(BINARY_PATH)
+	@chmod +x $(BINARY_PATH)
+	@cp -r chromium_libs $(BINARY_DIR)/chromium_libs 2>/dev/null || true
+	@echo ""
+	@echo "Datacenter install complete!"
+	@echo "The binary at $(BINARY_PATH) now automatically sets up library paths."
+	@echo ""
+	@echo "Test with:"
+	@echo "  $(BINARY_PATH) --session test open https://example.com"
+
+# Install to ~/.local/bin
+install: build
+	@echo "Installing $(BINARY_NAME) to ~/.local/bin..."
+	@mkdir -p ~/.local/bin
+	@# Remove old binary first to avoid "Text file busy" error
+	@rm -f ~/.local/bin/$(BINARY_NAME)
+	@cp $(BINARY_PATH) ~/.local/bin/$(BINARY_NAME)
+	@echo "Install complete: ~/.local/bin/$(BINARY_NAME)"
+
+# Install development tools
+install-dev-tools:
+	@echo "Installing development tools..."
+	$(GOCMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	$(GOCMD) install github.com/securego/gosec/v2/cmd/gosec@latest
+
+# Run the application
+run: build
+	@echo "Running $(BINARY_NAME)..."
+	./$(BINARY_PATH) --help
+
+# Create a simple test
+test-simple: build
+	@echo "Testing basic functionality..."
+	@# Create a test session
+	./$(BINARY_PATH) --session test123 ping || true
+
+# Show help
+help:
+	@echo "Available targets:"
+	@echo "  all           - Build the project (default)"
+	@echo "  build         - Build the binary"
+	@echo "  clean         - Clean build files"
+	@echo "  test          - Run tests"
+	@echo "  fmt           - Format code"
+	@echo "  vet           - Vet code"
+	@echo "  lint          - Lint code (requires golangci-lint)"
+	@echo "  install       - Install binary to ~/.local/bin"
+	@echo "  install-deps  - Install dependencies including Playwright"
+	@echo "  install-dev-tools - Install development tools"
+	@echo "  run           - Build and run with --help"
+	@echo "  test-simple   - Run a simple test"
+	@echo "  help          - Show this help message"
+
+# Development workflow
+dev: fmt vet build test-simple

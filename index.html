@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web Browse Agent — AI-Powered Browser Automation</title>
-    <meta name="description" content="An AI-powered agent for web browsing and UI testing, written in Go. Built by FileSurf.">
+    <meta name="description" content="A sessionful browser automation CLI for persistent web browsing sessions. Built by FileSurf.">
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
@@ -57,7 +57,7 @@
 </head>
 <body>
     <h1>Web Browse Agent</h1>
-    <p class="tagline">AI-powered web browsing and UI testing agent with Playwright integration. Written in Go.</p>
+    <p class="tagline">A sessionful browser automation CLI for persistent web browsing sessions. Written in Go.</p>
 
     <p>
         <a href="https://github.com/filesurf-io/web-browse-agent" class="cta">View on GitHub</a>
@@ -67,15 +67,16 @@
     <h2>Quick start</h2>
     <pre><code>git clone https://github.com/filesurf-io/web-browse-agent.git
 cd web-browse-agent
-go build -o web-browse-agent ./cmd/agent
-./web-browse-agent "go to google.com and search for playwright"</code></pre>
+make build
+make install-deps
+web_browse_agent --session test open https://example.com</code></pre>
 
     <h2>Features</h2>
     <ul>
-        <li><strong>Agentic Loop</strong> — recursive tool execution with automatic retry</li>
-        <li><strong>Playwright Integration</strong> — full browser automation</li>
-        <li><strong>Multi-LLM</strong> — OpenAI GPT-4 and Anthropic Claude support</li>
-        <li><strong>18 Browser Tools</strong> — click, type, screenshot, evaluate, tabs, and more</li>
+        <li><strong>Persistent Sessions</strong> — browser state maintained across commands</li>
+        <li><strong>Full Browser Automation</strong> — powered by Playwright</li>
+        <li><strong>Stealth Mode</strong> — Cloudflare/bot-detection bypass built-in</li>
+        <li><strong>JSON Output</strong> — machine-readable with <code>--json</code></li>
     </ul>
 
     <p class="built-by">
