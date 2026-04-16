@@ -1,6 +1,12 @@
 # Web Browse Agent
 
-Version: `1.4.0`
+<p align="center">
+  <img src="https://github.com/filesurf-io/web-browse-agent/raw/master/logo.png" alt="Web Browse Agent logo" width="192">
+</p>
+
+<p align="center">
+  <strong>Version:</strong> <code>1.4.0</code>
+</p>
 
 A sessionful browser automation CLI for persistent web browsing sessions. This tool provides a REPL-style interface where you start a browser session and send commands one at a time while maintaining session state.
 
