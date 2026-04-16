@@ -2,6 +2,8 @@
 
 An AI-powered agent for web browsing and UI testing, written in Go. This agent uses an agentic loop pattern to accomplish complex tasks through recursive tool calls, combining browser automation with LLM reasoning.
 
+Built by the team at **[FileSurf](https://filesurf.io)** — the AI-native workspace for files, chat, and automation.
+
 ## Features
 
 - **Agentic Loop Pattern** - Recursive tool execution with automatic retry and error handling (up to 50 iterations)
@@ -25,7 +27,7 @@ An AI-powered agent for web browsing and UI testing, written in Go. This agent u
 
 ```bash
 # Clone the repository
-git clone https://github.com/puter/web-browse-agent.git
+git clone https://github.com/filesurf-io/web-browse-agent.git
 cd web-browse-agent
 
 # Build the agent
@@ -355,3 +357,5 @@ This project is a Go port inspired by Java-based AI agents for UI testing. It le
 - [Playwright for Go](https://github.com/playwright-community/playwright-go) - Browser automation
 - [Cobra](https://github.com/spf13/cobra) - CLI framework
 - OpenAI and Anthropic APIs for LLM capabilities
+
+Proudly maintained by [FileSurf](https://filesurf.io) — bring your files and AI together.

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Browse Agent — AI-Powered Browser Automation</title>
+    <meta name="description" content="An AI-powered agent for web browsing and UI testing, written in Go. Built by FileSurf.">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 2rem;
+            color: #24292f;
+            background: #ffffff;
+        }
+        h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+        .tagline { color: #57606a; font-size: 1.1rem; margin-bottom: 1.5rem; }
+        a { color: #0969da; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .cta {
+            display: inline-block;
+            margin: 1rem 0.5rem 1rem 0;
+            padding: 0.6rem 1.2rem;
+            border-radius: 6px;
+            background: #0969da;
+            color: #fff;
+            font-weight: 500;
+        }
+        .cta:hover { text-decoration: none; background: #0550ae; }
+        .cta-secondary {
+            background: #f6f8fa;
+            color: #24292f;
+            border: 1px solid #d0d7de;
+        }
+        .cta-secondary:hover { background: #f3f4f6; }
+        .built-by {
+            margin-top: 2.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #d0d7de;
+            color: #57606a;
+        }
+        code {
+            background: #f6f8fa;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+        }
+        pre {
+            background: #f6f8fa;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Web Browse Agent</h1>
+    <p class="tagline">AI-powered web browsing and UI testing agent with Playwright integration. Written in Go.</p>
+
+    <p>
+        <a href="https://github.com/filesurf-io/web-browse-agent" class="cta">View on GitHub</a>
+        <a href="https://filesurf.io" class="cta cta-secondary">Visit FileSurf</a>
+    </p>
+
+    <h2>Quick start</h2>
+    <pre><code>git clone https://github.com/filesurf-io/web-browse-agent.git
+cd web-browse-agent
+go build -o web-browse-agent ./cmd/agent
+./web-browse-agent "go to google.com and search for playwright"</code></pre>
+
+    <h2>Features</h2>
+    <ul>
+        <li><strong>Agentic Loop</strong> — recursive tool execution with automatic retry</li>
+        <li><strong>Playwright Integration</strong> — full browser automation</li>
+        <li><strong>Multi-LLM</strong> — OpenAI GPT-4 and Anthropic Claude support</li>
+        <li><strong>18 Browser Tools</strong> — click, type, screenshot, evaluate, tabs, and more</li>
+    </ul>
+
+    <p class="built-by">
+        Built by the team at <a href="https://filesurf.io">FileSurf</a> — the AI-native workspace for files, chat, and automation.
+    </p>
+</body>
+</html>
